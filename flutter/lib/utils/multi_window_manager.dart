@@ -157,9 +157,14 @@ class RustDeskMultiWindowManager {
     }
     final windowId = windowController.windowId;
     if (!withScreenRect) {
+      // The file transfer window gets the wider two-pane layout that the
+      // rustdesk-originium UI is modelled on; other windows keep the previous
+      // cascading default size.
+      final size = type == WindowType.FileTransfer
+          ? const Size(1120, 720)
+          : Size(1280 + windowId * 20, 720 + windowId * 20);
       windowController
-        ..setFrame(const Offset(0, 0) &
-            Size(1280 + windowId * 20, 720 + windowId * 20))
+        ..setFrame(const Offset(0, 0) & size)
         ..center()
         ..setTitle(getWindowNameWithId(
           remoteId,

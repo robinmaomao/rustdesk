@@ -14,6 +14,7 @@ import 'package:flutter_hbb/web/dummy.dart'
 import '../consts.dart';
 import '../utils/android_documents.dart';
 import 'model.dart';
+import 'originium_transfer_registry.dart';
 import 'platform_model.dart';
 
 enum SortBy {
@@ -74,6 +75,9 @@ class FileModel {
     getDialogManager = () => parent.target?.dialogManager;
     fileFetcher = FileFetcher(getSessionID);
     jobController = JobController(getSessionID, getDialogManager);
+    // Expose this session's jobs to the process-wide registry so the shell can
+    // keep transfers alive after the transfer window is closed.
+    OriginiumTransferRegistry.instance.register(jobController);
     localController = FileController(
         isLocal: true,
         getSessionID: getSessionID,
@@ -99,6 +103,7 @@ class FileModel {
   }
 
   Future<void> close() async {
+    OriginiumTransferRegistry.instance.unregister(jobController);
     await evtLoop.close();
     parent.target?.dialogManager.dismissAll();
     await localController.close();

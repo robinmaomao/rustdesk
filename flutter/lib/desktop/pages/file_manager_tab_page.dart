@@ -6,10 +6,12 @@ import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/state_model.dart';
+import 'package:flutter_hbb/models/originium_transfer_registry.dart';
 import 'package:flutter_hbb/desktop/pages/file_manager_page.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:get/get.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../models/platform_model.dart';
 
@@ -150,6 +152,21 @@ class _FileManagerTabPageState extends State<FileManagerTabPage> {
   }
 
   Future<bool> handleWindowCloseButton() async {
+    // rustdesk-originium: a transfer window is the only owner of a running
+    // file job. Closing it used to kill the session (and the transfer with it),
+    // so offer to keep the window alive in the background instead.
+    final transfers = OriginiumTransferRegistry.instance;
+    if (transfers.hasActiveTransfers) {
+      final keepRunning = await _askKeepTransfersRunning(transfers);
+      if (keepRunning == null) return false; // dialog dismissed
+      if (keepRunning) {
+        // Minimising keeps the window (and therefore the session that owns the
+        // jobs) alive, while leaving a taskbar entry so the user can come back
+        // to the queue. Hiding it would make the running transfer unreachable.
+        await windowManager.minimize();
+        return false;
+      }
+    }
     final connLength = tabController.state.value.tabs.length;
     if (connLength == 1) {
       if (await desktopTryShowTabAuditDialogCloseCancelled(
@@ -175,5 +192,51 @@ class _FileManagerTabPageState extends State<FileManagerTabPage> {
       }
       return res;
     }
+  }
+
+  /// Asks what should happen to running transfers when the window is closed.
+  ///
+  /// Returns `true` to hide the window and keep transferring, `false` to close
+  /// the window (and cancel the jobs), or `null` when the dialog is dismissed.
+  Future<bool?> _askKeepTransfersRunning(
+      OriginiumTransferRegistry transfers) {
+    final count = transfers.activeCount;
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => CustomAlertDialog(
+        title: Text(translate('File Transfer')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${translate('Transfer in progress')}: $count',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${translate('Progress')}: ${transfers.percentText}',
+            ),
+            const SizedBox(height: 8),
+            Text(translate(
+                'Keep transferring in the background after this window is closed?')),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(null),
+            child: Text(translate('Cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(translate('Close')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(translate('Minimize and keep transferring')),
+          ),
+        ],
+      ),
+    );
   }
 }
