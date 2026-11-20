@@ -40,7 +40,8 @@ class OriginiumIdCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(translate('ID'), style: TextStyle(fontSize: 13, color: labelColor)),
+              Text(translate('ID'),
+                  style: TextStyle(fontSize: 13, color: labelColor)),
               const Spacer(),
               _CopyAction(
                 tooltip: translate('Copy'),
@@ -76,7 +77,8 @@ class OriginiumIdCard extends StatelessWidget {
               _CopyAction(
                 tooltip: translate('Copy'),
                 onCopy: () {
-                  Clipboard.setData(ClipboardData(text: model.serverPasswd.text));
+                  Clipboard.setData(
+                      ClipboardData(text: model.serverPasswd.text));
                   showToast(translate('Copied'));
                 },
               ),
@@ -319,16 +321,17 @@ class _TileAction extends StatelessWidget {
         decoration: BoxDecoration(
           color: filled ? MyTheme.accent : Colors.transparent,
           borderRadius: BorderRadius.circular(9),
-          border: filled
-              ? null
-              : Border.all(color: MyTheme.color(context).border!),
+          border:
+              filled ? null : Border.all(color: MyTheme.color(context).border!),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon,
                 size: 15,
-                color: filled ? Colors.white : color.withOpacity(enabled ? 0.85 : 0.35)),
+                color: filled
+                    ? Colors.white
+                    : color.withOpacity(enabled ? 0.85 : 0.35)),
             const SizedBox(width: 5),
             Flexible(
               child: Text(
@@ -384,7 +387,8 @@ class _OriginiumTransferBannerState extends State<OriginiumTransferBanner> {
   Widget build(BuildContext context) {
     final registry = OriginiumTransferRegistry.instance;
     if (!registry.hasActiveTransfers) return const SizedBox.shrink();
-    final muted = Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.65);
+    final muted =
+        Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.65);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
