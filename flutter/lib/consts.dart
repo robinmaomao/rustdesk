@@ -267,6 +267,12 @@ const String kMsgboxTextWaitingForImage = 'Connected, waiting for image...';
 // the executable name of the portable version
 const String kEnvPortableExecutable = "RUSTDESK_APPNAME";
 
+/// rustdesk-originium: local option holding the remote window mode the user
+/// last selected, so a new session can restore it.
+const String kOriginiumLastWindowModeOption = "originium-last-window-mode";
+const String kOriginiumWindowModeFullscreen = "fullscreen";
+const String kOriginiumWindowModeWindowed = "windowed";
+
 const Color kColorWarn = Color.fromARGB(255, 245, 133, 59);
 const Color kColorCanvas = Colors.black;
 

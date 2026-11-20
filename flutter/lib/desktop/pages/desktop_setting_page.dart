@@ -27,6 +27,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/login.dart';
+import '../../originium_branding.dart';
 
 const double _kTabWidth = 200;
 const double _kTabHeight = 42;
@@ -2595,13 +2596,16 @@ class _AboutState extends State<_About> {
       final scrollController = ScrollController();
       return SingleChildScrollView(
         controller: scrollController,
-        child: _Card(title: translate('About RustDesk'), children: [
+        child: _Card(title: kOriginiumProductName, children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(
                 height: 8.0,
               ),
+              SelectionArea(
+                  child: Text('$kOriginiumProductName $version')
+                      .marginSymmetric(vertical: 4.0)),
               SelectionArea(
                   child: Text('${translate('Version')}: $version')
                       .marginSymmetric(vertical: 4.0)),

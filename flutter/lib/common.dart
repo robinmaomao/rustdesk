@@ -29,6 +29,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
 
 import '../consts.dart';
+import 'originium_branding.dart';
 import 'common/widgets/overlay.dart';
 import 'mobile/pages/file_manager_page.dart';
 import 'mobile/pages/remote_page.dart';
@@ -3061,18 +3062,20 @@ int versionCmp(String v1, String v2) {
 }
 
 String getWindowName({WindowType? overrideType}) {
-  final name = bind.mainGetAppNameSync();
+  // Rebranded for the rustdesk-originium fork; see originium_branding.dart for
+  // why the internal APP_NAME is deliberately left alone.
+  const name = kOriginiumProductName;
   switch (overrideType ?? kWindowType) {
     case WindowType.Main:
       return name;
     case WindowType.FileTransfer:
-      return "File Transfer - $name";
+      return originiumWindowTitle("File Transfer");
     case WindowType.ViewCamera:
-      return "View Camera - $name";
+      return originiumWindowTitle("View Camera");
     case WindowType.PortForward:
-      return "Port Forward - $name";
+      return originiumWindowTitle("Port Forward");
     case WindowType.RemoteDesktop:
-      return "Remote Desktop - $name";
+      return originiumWindowTitle("Remote Desktop");
     default:
       break;
   }
