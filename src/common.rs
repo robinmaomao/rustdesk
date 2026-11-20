@@ -1236,6 +1236,16 @@ pub fn get_app_name() -> String {
     hbb_common::config::APP_NAME.read().unwrap().clone()
 }
 
+/// User-visible product name for the rustdesk-originium fork.
+///
+/// Deliberately separate from [`get_app_name`]: the latter also feeds config
+/// directories, log paths and `is_custom_client()`, so changing it would move
+/// on-disk state and flip the app into the custom-client update path.
+#[inline]
+pub fn get_app_display_name() -> String {
+    "rustdesk-originium".to_owned()
+}
+
 #[inline]
 pub fn is_rustdesk() -> bool {
     hbb_common::config::APP_NAME.read().unwrap().eq("RustDesk")
