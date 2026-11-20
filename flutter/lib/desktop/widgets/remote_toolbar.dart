@@ -487,6 +487,11 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
 
   void _setFullscreen(bool v) {
     stateGlobal.setFullscreen(v);
+    // rustdesk-originium: remember the last window mode so the next session
+    // opens the way the user left it.
+    bind.mainSetLocalOption(
+        key: kOriginiumLastWindowModeOption,
+        value: v ? kOriginiumWindowModeFullscreen : kOriginiumWindowModeWindowed);
     // stateGlobal.fullscreen is RxBool now, no need to call setState.
     // setState(() {});
   }
@@ -657,6 +662,17 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
         _isCursorOverImage = true;
       } else {
         _isCursorOverImage = false;
+      }
+    });
+
+    // rustdesk-originium: restore the window mode picked in a previous
+    // session once the toolbar is laid out.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final saved = bind.mainGetLocalOption(key: kOriginiumLastWindowModeOption);
+      if (saved == kOriginiumWindowModeFullscreen &&
+          !stateGlobal.fullscreen.isTrue) {
+        _setFullscreen(true);
       }
     });
   }
