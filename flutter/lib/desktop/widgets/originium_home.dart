@@ -3,11 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/formatter/id_formatter.dart';
+import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/models/originium_transfer_registry.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/server_model.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
+
+/// Shared metrics so the cards, tiles and controls keep one rhythm instead of
+/// each widget picking its own radius and gap.
+const double _kOriginiumCardRadius = 14;
+const double _kOriginiumControlRadius = 9;
+const double _kOriginiumGap = 10;
 
 /// UU-style local device card.
 ///
@@ -51,7 +59,7 @@ class OriginiumIdCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(_kOriginiumCardRadius),
         border: Border.all(color: borderColor),
       ),
       child: Column(
@@ -79,6 +87,7 @@ class OriginiumIdCard extends StatelessWidget {
           TextFormField(
             controller: model.serverId,
             readOnly: true,
+            onTap: () => _copy(model.serverId.text),
             decoration: const InputDecoration(
               border: InputBorder.none,
               isDense: true,
@@ -127,6 +136,7 @@ class OriginiumIdCard extends StatelessWidget {
           TextFormField(
             controller: model.serverPasswd,
             readOnly: true,
+            onTap: () => _copy(model.serverPasswd.text),
             decoration: const InputDecoration(
               border: InputBorder.none,
               isDense: true,
@@ -237,6 +247,7 @@ class OriginiumPeerTile extends StatefulWidget {
     this.lan = false,
     this.onConnect,
     this.onFileTransfer,
+    this.onRemove,
   });
 
   final Peer peer;
@@ -244,6 +255,7 @@ class OriginiumPeerTile extends StatefulWidget {
   final bool lan;
   final VoidCallback? onConnect;
   final VoidCallback? onFileTransfer;
+  final VoidCallback? onRemove;
 
   @override
   State<OriginiumPeerTile> createState() => _OriginiumPeerTileState();
@@ -264,7 +276,7 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
     final online = peer.online;
     final statusColor = online
         ? (MyTheme.color(context).me ?? accent)
-        : Colors.grey.withOpacity(0.5);
+        : (textTheme.bodySmall?.color?.withOpacity(0.35) ?? Colors.grey);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -272,7 +284,7 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
       child: Container(
         decoration: BoxDecoration(
           color: theme.cardColor,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(_kOriginiumCardRadius),
           border: Border.all(
             color: _hover
                 ? accent.withOpacity(0.55)
@@ -343,6 +355,7 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
                     child: _DeviceMenu(
                       onCopyId: () => _copyId(peer),
                       onSetAlias: () => _setAlias(context, peer),
+                      onRemove: widget.onRemove,
                     ),
                   ),
                 ),
@@ -443,7 +456,7 @@ class _PlatformAvatar extends StatelessWidget {
             height: 38,
             decoration: BoxDecoration(
               color: accent.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(_kOriginiumControlRadius),
             ),
             child:
                 Icon(originiumPlatformIcon(platform), size: 20, color: accent),
@@ -468,10 +481,15 @@ class _PlatformAvatar extends StatelessWidget {
 }
 
 class _DeviceMenu extends StatelessWidget {
-  const _DeviceMenu({required this.onCopyId, required this.onSetAlias});
+  const _DeviceMenu({
+    required this.onCopyId,
+    required this.onSetAlias,
+    this.onRemove,
+  });
 
   final VoidCallback onCopyId;
   final VoidCallback onSetAlias;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -483,6 +501,7 @@ class _DeviceMenu extends StatelessWidget {
       onSelected: (value) {
         if (value == 'copy') onCopyId();
         if (value == 'alias') onSetAlias();
+        if (value == 'remove') onRemove?.call();
       },
       itemBuilder: (context) => [
         PopupMenuItem(
@@ -493,6 +512,11 @@ class _DeviceMenu extends StatelessWidget {
           value: 'alias',
           child: Text(translate('Set alias')),
         ),
+        if (onRemove != null)
+          PopupMenuItem(
+            value: 'remove',
+            child: Text(translate('Remove')),
+          ),
       ],
     );
   }
@@ -523,12 +547,12 @@ class _TileAction extends StatelessWidget {
 
     return InkWell(
       onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(9),
+      borderRadius: BorderRadius.circular(_kOriginiumControlRadius),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: filled ? accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(_kOriginiumControlRadius),
           border:
               filled ? null : Border.all(color: MyTheme.color(context).border!),
         ),
@@ -614,7 +638,7 @@ class _OriginiumTransferBannerState extends State<OriginiumTransferBanner> {
       padding: const EdgeInsets.fromLTRB(12, 8, 6, 10),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(_kOriginiumCardRadius),
         border: Border.all(color: MyTheme.color(context).border!),
       ),
       child: Column(
@@ -783,6 +807,37 @@ class _OriginiumDeviceGridState extends State<OriginiumDeviceGrid> {
     return entries.take(widget.maxTiles).toList(growable: false);
   }
 
+  void _confirmRemove(_DeviceEntry entry) {
+    final name = entry.peer.alias.isNotEmpty
+        ? entry.peer.alias
+        : formatID(entry.peer.id);
+    deleteConfirmDialog(
+        () => _remove(entry), '${translate('Remove')} "$name"?');
+  }
+
+  Future<void> _remove(_DeviceEntry entry) async {
+    try {
+      // Each list owns its own storage, so the entry has to be removed from the
+      // one it actually came from.
+      if (entry.favorite) {
+        final favs = (await bind.mainGetFav()).toList();
+        if (favs.remove(entry.peer.id)) {
+          await bind.mainStoreFav(favs: favs);
+        }
+        await bind.mainLoadFavPeers();
+      } else if (entry.lan) {
+        await bind.mainRemoveDiscovered(id: entry.peer.id);
+        await bind.mainLoadLanPeers();
+      } else {
+        await bind.mainRemovePeer(id: entry.peer.id);
+        await bind.mainLoadRecentPeers();
+      }
+    } catch (e) {
+      debugPrint('remove peer failed: $e');
+      showToast(translate('Failed'));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final listenable = Listenable.merge([
@@ -808,7 +863,7 @@ class _OriginiumDeviceGridState extends State<OriginiumDeviceGrid> {
                 : constraints.maxWidth >= 560
                     ? 2
                     : 1;
-            const spacing = 10.0;
+            const spacing = _kOriginiumGap;
             final tileWidth =
                 (constraints.maxWidth - spacing * (columns - 1)) / columns;
             // Fixed height keeps rows aligned, but it has to follow the user's
@@ -835,6 +890,7 @@ class _OriginiumDeviceGridState extends State<OriginiumDeviceGrid> {
                       onConnect: () => connect(context, entry.peer.id),
                       onFileTransfer: () =>
                           connect(context, entry.peer.id, isFileTransfer: true),
+                      onRemove: () => _confirmRemove(entry),
                     ),
                   ),
               ],
@@ -866,7 +922,7 @@ class _EmptyDevices extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(_kOriginiumCardRadius),
         border: Border.all(color: MyTheme.color(context).border!),
       ),
       child: Column(
