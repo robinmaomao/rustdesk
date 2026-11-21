@@ -3,37 +3,55 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/originium_transfer_registry.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
-import 'package:get/get.dart';
-
-/// Online indicator colour, matching the green RustDesk uses elsewhere.
-const Color _kOriginiumOnline = Color(0xFF4CAF50);
+import 'package:flutter_hbb/models/server_model.dart';
 
 /// UU-style local device card.
 ///
-/// The device id and the one-time password are the two things a user reads out
-/// loud when pairing, so they get the visual weight here instead of the small
-/// board rows RustDesk originally used.
+/// The device id and the password are the two things a user reads out loud when
+/// pairing, so they get the visual weight here instead of the small board rows
+/// RustDesk originally used.
+///
+/// [onOpenSettings] and [onChangePassword] are injected by the home page so this
+/// widget does not need to import the settings page (which imports the home
+/// page, and would create an import cycle).
 class OriginiumIdCard extends StatelessWidget {
-  const OriginiumIdCard({super.key});
+  const OriginiumIdCard(
+      {super.key, this.onOpenSettings, this.onChangePassword});
+
+  final VoidCallback? onOpenSettings;
+  final VoidCallback? onChangePassword;
 
   @override
   Widget build(BuildContext context) {
     final model = gFFI.serverModel;
+    // ServerModel is a ChangeNotifier; rebuilding on notify keeps the password
+    // label and the refresh action in sync with the verification settings.
+    return AnimatedBuilder(
+      animation: model,
+      builder: (context, _) => _buildCard(context, model),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, ServerModel model) {
     final textTheme = Theme.of(context).textTheme;
     final labelColor =
         textTheme.titleLarge?.color?.withOpacity(0.55) ?? Colors.grey;
+    final borderColor = MyTheme.color(context).border!;
+    // Same rule the original password board used: a one-time password only
+    // exists when neither click-approval nor a permanent password is in use.
+    final showOneTime = model.approveMode != 'click' &&
+        model.verificationMethod != kUsePermanentPassword;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 6, 14, 10),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: MyTheme.color(context).border!),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,12 +61,17 @@ class OriginiumIdCard extends StatelessWidget {
               Text(translate('ID'),
                   style: TextStyle(fontSize: 13, color: labelColor)),
               const Spacer(),
+              if (onOpenSettings != null)
+                IconButton(
+                  tooltip: translate('Settings'),
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  onPressed: onOpenSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                ),
               _CopyAction(
                 tooltip: translate('Copy'),
-                onCopy: () {
-                  Clipboard.setData(ClipboardData(text: model.serverId.text));
-                  showToast(translate('Copied'));
-                },
+                onCopy: () => _copy(model.serverId.text),
               ),
             ],
           ),
@@ -67,28 +90,37 @@ class OriginiumIdCard extends StatelessWidget {
             ),
           ).workaroundFreezeLinuxMint(),
           const SizedBox(height: 10),
-          Divider(height: 1, color: MyTheme.color(context).border),
+          Divider(height: 1, color: borderColor),
           const SizedBox(height: 10),
           Row(
             children: [
-              Text(translate('One-time Password'),
-                  style: TextStyle(fontSize: 13, color: labelColor)),
+              Text(
+                showOneTime
+                    ? translate('One-time Password')
+                    : translate('Permanent Password'),
+                style: TextStyle(fontSize: 13, color: labelColor),
+              ),
               const Spacer(),
+              if (onChangePassword != null)
+                IconButton(
+                  tooltip: translate('Change Password'),
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  onPressed: onChangePassword,
+                  icon: const Icon(Icons.edit_outlined),
+                ),
               _CopyAction(
                 tooltip: translate('Copy'),
-                onCopy: () {
-                  Clipboard.setData(
-                      ClipboardData(text: model.serverPasswd.text));
-                  showToast(translate('Copied'));
-                },
+                onCopy: () => _copy(model.serverPasswd.text),
               ),
-              IconButton(
-                tooltip: translate('Refresh Password'),
-                visualDensity: VisualDensity.compact,
-                iconSize: 18,
-                onPressed: () => bind.mainUpdateTemporaryPassword(),
-                icon: const Icon(Icons.refresh),
-              ),
+              if (showOneTime)
+                IconButton(
+                  tooltip: translate('Refresh Password'),
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  onPressed: () => bind.mainUpdateTemporaryPassword(),
+                  icon: const Icon(Icons.refresh),
+                ),
             ],
           ),
           TextFormField(
@@ -104,6 +136,12 @@ class OriginiumIdCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _copy(String text) {
+    if (text.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: text));
+    showToast(translate('Copied'));
   }
 }
 
@@ -204,10 +242,12 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
   @override
   Widget build(BuildContext context) {
     final peer = widget.peer;
+    final textTheme = Theme.of(context).textTheme;
     final displayName = peer.alias.isNotEmpty
         ? peer.alias
         : (peer.hostname.isNotEmpty ? peer.hostname : peer.id);
     final online = peer.online;
+    final accent = MyTheme.accent;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -218,7 +258,7 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: _hover
-                ? MyTheme.accent.withOpacity(0.55)
+                ? accent.withOpacity(0.55)
                 : MyTheme.color(context).border!,
           ),
         ),
@@ -229,15 +269,16 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
             Row(
               children: [
                 Icon(originiumPlatformIcon(peer.platform),
-                    size: 18, color: MyTheme.accent),
+                    size: 18, color: accent),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600),
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 Container(
@@ -246,29 +287,26 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: online
-                        ? _kOriginiumOnline
+                        ? (MyTheme.color(context).me ?? accent)
                         : Colors.grey.withOpacity(0.5),
                   ),
                 ),
                 const SizedBox(width: 4),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              peer.id,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-                color: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.color
-                    ?.withOpacity(0.6),
+            const SizedBox(height: 4),
+            Flexible(
+              child: Text(
+                peer.id,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.bodySmall?.copyWith(
+                  fontFamily: 'monospace',
+                  color: textTheme.bodySmall?.color?.withOpacity(0.6),
+                ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -280,10 +318,14 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                _TileAction(
-                  label: translate('File Transfer'),
-                  icon: Icons.swap_horiz_rounded,
-                  onTap: widget.onFileTransfer,
+                // Both actions must stay Expanded: `_TileAction` relies on a
+                // bounded width, otherwise its label collapses to zero width.
+                Expanded(
+                  child: _TileAction(
+                    label: translate('File Transfer'),
+                    icon: Icons.swap_horiz_rounded,
+                    onTap: widget.onFileTransfer,
+                  ),
                 ),
               ],
             ),
@@ -309,41 +351,39 @@ class _TileAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     final enabled = onTap != null;
+    final accent = MyTheme.accent;
     final color = filled
-        ? MyTheme.accent
-        : (Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white);
+        ? Colors.white
+        : (textTheme.bodyMedium?.color ?? Colors.white)
+            .withOpacity(enabled ? 0.85 : 0.35);
+
     return InkWell(
       onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(9),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: filled ? MyTheme.accent : Colors.transparent,
+          color: filled ? accent : Colors.transparent,
           borderRadius: BorderRadius.circular(9),
           border:
               filled ? null : Border.all(color: MyTheme.color(context).border!),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon,
-                size: 15,
-                color: filled
-                    ? Colors.white
-                    : color.withOpacity(enabled ? 0.85 : 0.35)),
+            Icon(icon, size: 15, color: color),
             const SizedBox(width: 5),
             Flexible(
               child: Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
+                style: textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: filled
-                      ? Colors.white
-                      : color.withOpacity(enabled ? 0.85 : 0.35),
+                  color: color,
                 ),
               ),
             ),
@@ -366,21 +406,30 @@ class OriginiumTransferBanner extends StatefulWidget {
 
 class _OriginiumTransferBannerState extends State<OriginiumTransferBanner> {
   Timer? _timer;
+  String _lastSnapshot = '';
 
   @override
   void initState() {
     super.initState();
     // Job state lives in a mutable model, not an observable, so poll while the
     // strip is mounted instead of wiring listeners into every job controller.
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
+    // The tick only rebuilds when the projected state actually changed, which
+    // keeps an idle home page from rebuilding once a second.
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  void _tick() {
+    final registry = OriginiumTransferRegistry.instance;
+    final snapshot = '${registry.activeCount}|${registry.percentText}';
+    if (snapshot == _lastSnapshot) return;
+    _lastSnapshot = snapshot;
+    if (mounted) setState(() {});
   }
 
   @override
@@ -488,6 +537,13 @@ class _OriginiumDeviceGridState extends State<OriginiumDeviceGrid> {
             const spacing = 10.0;
             final tileWidth =
                 (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            // Fixed height keeps rows aligned, but it has to follow the user's
+            // text scale or the content overflows the tile.
+            final tileHeight = 128.0 *
+                MediaQuery.textScalerOf(context)
+                    .scale(1.0)
+                    .clamp(1.0, 1.5)
+                    .toDouble();
             return Wrap(
               spacing: spacing,
               runSpacing: spacing,
@@ -495,27 +551,14 @@ class _OriginiumDeviceGridState extends State<OriginiumDeviceGrid> {
                 for (final peer in peers)
                   SizedBox(
                     width: tileWidth,
-                    height: 128,
+                    height: tileHeight,
                     child: OriginiumPeerTile(
                       peer: peer,
-                      onConnect: () => connectMainDesktop(
-                        peer.id,
-                        isFileTransfer: false,
-                        isViewCamera: false,
-                        isTerminal: false,
-                        isTcpTunneling: false,
-                        isRDP: false,
-                        password: peer.password.isEmpty ? null : peer.password,
-                      ),
-                      onFileTransfer: () => connectMainDesktop(
-                        peer.id,
-                        isFileTransfer: true,
-                        isViewCamera: false,
-                        isTerminal: false,
-                        isTcpTunneling: false,
-                        isRDP: false,
-                        password: peer.password.isEmpty ? null : peer.password,
-                      ),
+                      // Route through connect() rather than connectMainDesktop()
+                      // so relay ids are resolved and forceRelay is applied.
+                      onConnect: () => connect(context, peer.id),
+                      onFileTransfer: () =>
+                          connect(context, peer.id, isFileTransfer: true),
                     ),
                   ),
               ],
