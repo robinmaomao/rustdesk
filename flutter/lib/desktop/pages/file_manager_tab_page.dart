@@ -11,7 +11,6 @@ import 'package:flutter_hbb/desktop/pages/file_manager_page.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:get/get.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../models/platform_model.dart';
 
@@ -163,7 +162,10 @@ class _FileManagerTabPageState extends State<FileManagerTabPage> {
         // Minimising keeps the window (and therefore the session that owns the
         // jobs) alive, while leaving a taskbar entry so the user can come back
         // to the queue. Hiding it would make the running transfer unreachable.
-        await windowManager.minimize();
+        // Sub windows have their own engine and never call
+        // `windowManager.ensureInitialized()`, so the per-window controller is
+        // the only API that targets this window.
+        await WindowController.fromWindowId(windowId()).minimize();
         return false;
       }
     }
@@ -198,8 +200,7 @@ class _FileManagerTabPageState extends State<FileManagerTabPage> {
   ///
   /// Returns `true` to hide the window and keep transferring, `false` to close
   /// the window (and cancel the jobs), or `null` when the dialog is dismissed.
-  Future<bool?> _askKeepTransfersRunning(
-      OriginiumTransferRegistry transfers) {
+  Future<bool?> _askKeepTransfersRunning(OriginiumTransferRegistry transfers) {
     final count = transfers.activeCount;
     return showDialog<bool>(
       context: context,
@@ -218,8 +219,7 @@ class _FileManagerTabPageState extends State<FileManagerTabPage> {
               '${translate('Progress')}: ${transfers.percentText}',
             ),
             const SizedBox(height: 8),
-            Text(translate(
-                'Keep transferring in the background after this window is closed?')),
+            Text(translate('Keep transferring in the background?')),
           ],
         ),
         actions: [
