@@ -42,4 +42,33 @@ class OriginiumTransferRegistry {
       totalSize > 0 ? (finishedSize / totalSize).clamp(0.0, 1.0) : 0.0;
 
   String get percentText => '${(percent * 100).toStringAsFixed(0)}%';
+
+  /// Combined throughput of the running jobs, in bytes per second.
+  double get speedBytesPerSecond => activeJobs
+      .where((job) => job.state == JobState.inProgress)
+      .fold<double>(0, (sum, job) => sum + job.speed);
+
+  /// Rough time left for the whole queue, or null when it cannot be estimated.
+  Duration? get eta {
+    final speed = speedBytesPerSecond;
+    final remaining = totalSize - finishedSize;
+    if (speed <= 0 || remaining <= 0) return null;
+    final seconds = (remaining / speed).ceil();
+    if (seconds <= 0) return null;
+    return Duration(seconds: seconds);
+  }
+
+  /// Cancels every running job. Used by the background transfer strip, where
+  /// the transfer window itself may be minimised.
+  Future<void> cancelAll() async {
+    for (final controller in _controllers.toList(growable: false)) {
+      for (final job in controller.jobTable.toList(growable: false)) {
+        if (job.type != JobType.transfer) continue;
+        if (job.state != JobState.inProgress && job.state != JobState.paused) {
+          continue;
+        }
+        await controller.cancelJob(job.id);
+      }
+    }
+  }
 }

@@ -318,6 +318,18 @@ class RustDeskMultiWindowManager {
     );
   }
 
+  /// Brings every open file transfer window back to the front.
+  ///
+  /// Used by the background transfer strip in the main window, which may be the
+  /// only thing the user can see while the transfer window is minimised.
+  Future<void> showFileTransferWindows() async {
+    for (final windowId in List<int>.from(_fileTransferWindows)) {
+      final controller = WindowController.fromWindowId(windowId);
+      await controller.show();
+      await controller.focus();
+    }
+  }
+
   Future<MultiWindowCallResult> newViewCamera(
     String remoteId, {
     String? password,
@@ -493,7 +505,8 @@ class RustDeskMultiWindowManager {
     }
     for (int i = 0; i < windows.length; i++) {
       final wId = windows[i];
-      final shouldSavePos = type != WindowType.Terminal || i == windows.length - 1;
+      final shouldSavePos =
+          type != WindowType.Terminal || i == windows.length - 1;
       if (shouldSavePos) {
         debugPrint("closing multi window, type: ${type.toString()} id: $wId");
         try {
