@@ -485,14 +485,22 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
 
   int get windowId => stateGlobal.windowId;
 
+  /// Whether the window mode should be carried over to the next session.
+  bool get _rememberWindowMode => option2bool(
+      kOriginiumRememberWindowModeOption,
+      bind.mainGetLocalOption(key: kOriginiumRememberWindowModeOption));
+
   void _setFullscreen(bool v) {
     stateGlobal.setFullscreen(v);
     // rustdesk-originium: remember the last window mode so the next session
     // opens the way the user left it.
-    unawaited(bind.mainSetLocalOption(
-        key: kOriginiumLastWindowModeOption,
-        value:
-            v ? kOriginiumWindowModeFullscreen : kOriginiumWindowModeWindowed));
+    if (_rememberWindowMode) {
+      unawaited(bind.mainSetLocalOption(
+          key: kOriginiumLastWindowModeOption,
+          value: v
+              ? kOriginiumWindowModeFullscreen
+              : kOriginiumWindowModeWindowed));
+    }
     // stateGlobal.fullscreen is RxBool now, no need to call setState.
     // setState(() {});
   }
@@ -681,6 +689,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     if (!_windowModeRestored.add(sessionKey)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (!_rememberWindowMode) return;
       final saved =
           bind.mainGetLocalOption(key: kOriginiumLastWindowModeOption);
       if (saved != kOriginiumWindowModeFullscreen) return;
@@ -3622,8 +3631,8 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                 widget.setFullscreen(!isFullscreen.value);
               },
               Tooltip(
-                message: translate(
-                    isFullscreen.isTrue ? 'Exit Fullscreen' : 'Fullscreen'),
+                message:
+                    '${translate(isFullscreen.isTrue ? 'Exit Fullscreen' : 'Fullscreen')}\nCtrl+Alt+Shift+X',
                 child: Icon(
                   isFullscreen.isTrue
                       ? Icons.fullscreen_exit

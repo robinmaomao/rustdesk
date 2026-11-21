@@ -526,7 +526,10 @@ class _GeneralState extends State<_General> {
     final incomingOnly = bind.isIncomingOnly();
     final outgoingOnly = bind.isOutgoingOnly();
     final showAutoUpdate = (isWindows && bind.mainIsInstalled()) ||
-    (isMacOS && bind.mainIsInstalled() && bind.mainIsInstalledDaemon(prompt: false) && !bind.isCustomClient());
+        (isMacOS &&
+            bind.mainIsInstalled() &&
+            bind.mainIsInstalledDaemon(prompt: false) &&
+            !bind.isCustomClient());
     final children = <Widget>[
       if (!isWeb && !incomingOnly)
         _OptionCheckBox(context, 'Confirm before closing multiple tabs',
@@ -550,6 +553,14 @@ class _GeneralState extends State<_General> {
           context,
           'Open connection in new tab',
           kOptionOpenNewConnInTabs,
+          isServer: false,
+        ),
+        // rustdesk-originium: the remote window mode is remembered unless the
+        // user opts out of it.
+        _OptionCheckBox(
+          context,
+          'Remember last window mode',
+          kOriginiumRememberWindowModeOption,
           isServer: false,
         ),
         Tooltip(
@@ -1146,15 +1157,16 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               child: _OptionCheckBox(context, "Enable trusted devices",
                   kOptionEnableTrustedDevices,
                   optSetter: (key, value) async {
-                try {
-                  await mainSetBoolOption(key, value);
-                } catch (error) {
-                  showToast(error.toString());
-                }
-              },
-                  enabled: !locked, update: (v) {
-                setState(() {});
-              }),
+                    try {
+                      await mainSetBoolOption(key, value);
+                    } catch (error) {
+                      showToast(error.toString());
+                    }
+                  },
+                  enabled: !locked,
+                  update: (v) {
+                    setState(() {});
+                  }),
             ),
           ),
           if (mainGetBoolOptionSync(kOptionEnableTrustedDevices))
