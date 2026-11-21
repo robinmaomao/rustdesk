@@ -489,9 +489,10 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     stateGlobal.setFullscreen(v);
     // rustdesk-originium: remember the last window mode so the next session
     // opens the way the user left it.
-    bind.mainSetLocalOption(
+    unawaited(bind.mainSetLocalOption(
         key: kOriginiumLastWindowModeOption,
-        value: v ? kOriginiumWindowModeFullscreen : kOriginiumWindowModeWindowed);
+        value:
+            v ? kOriginiumWindowModeFullscreen : kOriginiumWindowModeWindowed));
     // stateGlobal.fullscreen is RxBool now, no need to call setState.
     // setState(() {});
   }
@@ -666,14 +667,25 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     });
 
     // rustdesk-originium: restore the window mode picked in a previous
-    // session once the toolbar is laid out.
+    // session, once per session only. The toolbar is rebuilt inside an
+    // OverlayEntry, so re-applying it here would fight a user who just left
+    // fullscreen.
+    _restoreLastWindowModeOnce();
+  }
+
+  /// Sessions whose saved window mode has already been restored.
+  static final Set<String> _windowModeRestored = <String>{};
+
+  void _restoreLastWindowModeOnce() {
+    final sessionKey = widget.ffi.sessionId.toString();
+    if (!_windowModeRestored.add(sessionKey)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final saved = bind.mainGetLocalOption(key: kOriginiumLastWindowModeOption);
-      if (saved == kOriginiumWindowModeFullscreen &&
-          !stateGlobal.fullscreen.isTrue) {
-        _setFullscreen(true);
-      }
+      final saved =
+          bind.mainGetLocalOption(key: kOriginiumLastWindowModeOption);
+      if (saved != kOriginiumWindowModeFullscreen) return;
+      if (stateGlobal.fullscreen.isTrue) return;
+      _setFullscreen(true);
     });
   }
 
