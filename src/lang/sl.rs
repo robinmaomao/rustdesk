@@ -834,5 +834,11 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Progress", ""),
         ("Keep transferring in the background?", ""),
         ("Minimize and keep transferring", ""),
+        ("Set alias", ""),
+        ("Copy ID", ""),
+        ("Scan LAN", ""),
+        ("Expand", ""),
+        ("Collapse", ""),
+        ("Transfer finished", ""),
     ].iter().cloned().collect();
 }
