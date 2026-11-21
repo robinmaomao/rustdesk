@@ -33,10 +33,10 @@ class OriginiumTransferRegistry {
   int get activeCount => activeJobs.length;
 
   int get totalSize =>
-      activeJobs.fold<int>(0, (sum, job) => sum + job.totalSize as int);
+      activeJobs.fold<int>(0, (sum, job) => sum + job.totalSize);
 
   int get finishedSize =>
-      activeJobs.fold<int>(0, (sum, job) => sum + job.finishedSize as int);
+      activeJobs.fold<int>(0, (sum, job) => sum + job.finishedSize);
 
   double get percent =>
       totalSize > 0 ? (finishedSize / totalSize).clamp(0.0, 1.0) : 0.0;
