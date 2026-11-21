@@ -307,24 +307,7 @@ class _ConnectionPageState extends State<ConnectionPage>
     final isOutgoingOnly = bind.isOutgoingOnly();
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-          child: ConstrainedBox(
-            // Keeps the device shelf from pushing the connect box off-screen
-            // when the window is narrow and the grid falls back to one column.
-            constraints: const BoxConstraints(maxHeight: 300),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  OriginiumSectionHeader(translate('My Devices')),
-                  const OriginiumTransferBanner(),
-                  OriginiumDeviceGrid(maxTiles: 6),
-                ],
-              ),
-            ),
-          ),
-        ),
+        const OriginiumDeviceShelf(maxTiles: 6),
         Expanded(
             child: Column(
           children: [
@@ -631,8 +614,8 @@ class _ConnectionPageState extends State<ConnectionPage>
                                         () => onConnect(isTcpTunneling: true)
                                       ),
                                   ]
-                                      .map<MenuEntryBase<String>>(
-                                          (e) => MenuEntryButton<String>(
+                                      .map<MenuEntryBase<String>>((e) =>
+                                          MenuEntryButton<String>(
                                             childBuilder: (TextStyle? style) =>
                                                 Text(
                                               translate(e.$1),

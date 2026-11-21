@@ -7,6 +7,7 @@ import 'package:flutter_hbb/models/originium_transfer_registry.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/server_model.dart';
+import 'package:flutter_hbb/utils/multi_window_manager.dart';
 
 /// UU-style local device card.
 ///
@@ -216,19 +217,31 @@ IconData originiumPlatformIcon(String platform) {
   }
 }
 
-/// Compact device tile: status, name, id and the two primary actions.
-///
-/// This intentionally drops the certificate/tag rows that the full RustDesk
-/// peer card shows, so a grid of devices stays scannable.
+/// One entry of the device grid, tagged with where it came from.
+class _DeviceEntry {
+  const _DeviceEntry(this.peer, {this.favorite = false, this.lan = false});
+
+  final Peer peer;
+  final bool favorite;
+  final bool lan;
+}
+
+/// Compact device tile: platform avatar with status badge, name, id and the two
+/// primary actions. Secondary actions live in the hover menu so the tile stays
+/// scannable.
 class OriginiumPeerTile extends StatefulWidget {
   const OriginiumPeerTile({
     super.key,
     required this.peer,
+    this.favorite = false,
+    this.lan = false,
     this.onConnect,
     this.onFileTransfer,
   });
 
   final Peer peer;
+  final bool favorite;
+  final bool lan;
   final VoidCallback? onConnect;
   final VoidCallback? onFileTransfer;
 
@@ -242,19 +255,23 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
   @override
   Widget build(BuildContext context) {
     final peer = widget.peer;
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final accent = MyTheme.accent;
     final displayName = peer.alias.isNotEmpty
         ? peer.alias
         : (peer.hostname.isNotEmpty ? peer.hostname : peer.id);
     final online = peer.online;
-    final accent = MyTheme.accent;
+    final statusColor = online
+        ? (MyTheme.color(context).me ?? accent)
+        : Colors.grey.withOpacity(0.5);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: _hover
@@ -262,51 +279,76 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
                 : MyTheme.color(context).border!,
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(originiumPlatformIcon(peer.platform),
-                    size: 18, color: accent),
-                const SizedBox(width: 8),
+                _PlatformAvatar(
+                  platform: peer.platform,
+                  statusColor: statusColor,
+                  badgeBorder: theme.cardColor,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          if (widget.favorite)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(Icons.star,
+                                  size: 11, color: Colors.amber[600]),
+                            ),
+                          if (widget.lan)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(Icons.wifi,
+                                  size: 11, color: accent.withOpacity(0.8)),
+                            ),
+                          Expanded(
+                            child: Text(
+                              peer.id,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.bodySmall?.copyWith(
+                                fontFamily: 'monospace',
+                                color: textTheme.bodySmall?.color
+                                    ?.withOpacity(0.6),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                AnimatedOpacity(
+                  opacity: _hover ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  child: IgnorePointer(
+                    ignoring: !_hover,
+                    child: _DeviceMenu(
+                      onCopyId: () => _copyId(peer),
+                      onSetAlias: () => _setAlias(context, peer),
                     ),
                   ),
                 ),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: online
-                        ? (MyTheme.color(context).me ?? accent)
-                        : Colors.grey.withOpacity(0.5),
-                  ),
-                ),
-                const SizedBox(width: 4),
               ],
             ),
-            const SizedBox(height: 4),
-            Flexible(
-              child: Text(
-                peer.id,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(
-                  fontFamily: 'monospace',
-                  color: textTheme.bodySmall?.color?.withOpacity(0.6),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
+            const Spacer(),
             Row(
               children: [
                 Expanded(
@@ -332,6 +374,126 @@ class _OriginiumPeerTileState extends State<OriginiumPeerTile> {
           ],
         ),
       ),
+    );
+  }
+
+  void _copyId(Peer peer) {
+    Clipboard.setData(ClipboardData(text: peer.id));
+    showToast(translate('Copied'));
+  }
+
+  Future<void> _setAlias(BuildContext context, Peer peer) async {
+    final controller = TextEditingController(text: peer.alias);
+    final alias = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => CustomAlertDialog(
+        title: Text(translate('Alias')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(isDense: true),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(translate('Cancel')),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: Text(translate('OK')),
+          ),
+        ],
+      ),
+    );
+    if (alias == null) return;
+    try {
+      await bind.mainSetPeerAlias(id: peer.id, alias: alias);
+      await bind.mainLoadRecentPeers();
+      await bind.mainLoadFavPeers();
+    } catch (e) {
+      debugPrint('set alias failed: $e');
+      showToast(translate('Failed'));
+    }
+  }
+}
+
+class _PlatformAvatar extends StatelessWidget {
+  const _PlatformAvatar({
+    required this.platform,
+    required this.statusColor,
+    required this.badgeBorder,
+  });
+
+  final String platform;
+  final Color statusColor;
+  final Color badgeBorder;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = MyTheme.accent;
+    return SizedBox(
+      width: 38,
+      height: 38,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child:
+                Icon(originiumPlatformIcon(platform), size: 20, color: accent),
+          ),
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: statusColor,
+                border: Border.all(color: badgeBorder, width: 2),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeviceMenu extends StatelessWidget {
+  const _DeviceMenu({required this.onCopyId, required this.onSetAlias});
+
+  final VoidCallback onCopyId;
+  final VoidCallback onSetAlias;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: '',
+      padding: EdgeInsets.zero,
+      iconSize: 18,
+      icon: const Icon(Icons.more_vert),
+      onSelected: (value) {
+        if (value == 'copy') onCopyId();
+        if (value == 'alias') onSetAlias();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'copy',
+          child: Text(translate('Copy ID')),
+        ),
+        PopupMenuItem(
+          value: 'alias',
+          child: Text(translate('Set alias')),
+        ),
+      ],
     );
   }
 }
@@ -407,6 +569,7 @@ class OriginiumTransferBanner extends StatefulWidget {
 class _OriginiumTransferBannerState extends State<OriginiumTransferBanner> {
   Timer? _timer;
   String _lastSnapshot = '';
+  bool _wasActive = false;
 
   @override
   void initState() {
@@ -426,7 +589,14 @@ class _OriginiumTransferBannerState extends State<OriginiumTransferBanner> {
 
   void _tick() {
     final registry = OriginiumTransferRegistry.instance;
-    final snapshot = '${registry.activeCount}|${registry.percentText}';
+    final active = registry.hasActiveTransfers;
+    if (_wasActive && !active) {
+      // Last job of the queue finished while the strip was visible.
+      showToast(translate('Transfer finished'));
+    }
+    _wasActive = active;
+    final snapshot = '$active|${registry.activeCount}|${registry.percentText}'
+        '|${registry.speedBytesPerSecond.round()}';
     if (snapshot == _lastSnapshot) return;
     _lastSnapshot = snapshot;
     if (mounted) setState(() {});
@@ -436,11 +606,12 @@ class _OriginiumTransferBannerState extends State<OriginiumTransferBanner> {
   Widget build(BuildContext context) {
     final registry = OriginiumTransferRegistry.instance;
     if (!registry.hasActiveTransfers) return const SizedBox.shrink();
-    final muted =
-        Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.65);
+    final textTheme = Theme.of(context).textTheme;
+    final muted = textTheme.bodySmall?.color?.withOpacity(0.65);
+    final eta = registry.eta;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(12, 8, 6, 10),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
@@ -455,30 +626,110 @@ class _OriginiumTransferBannerState extends State<OriginiumTransferBanner> {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  '${translate('Transfer in progress')}: ${registry.activeCount}',
+                  '${translate('Transfer in progress')}: ${registry.activeCount}'
+                  ' · ${readableFileSize(registry.speedBytesPerSecond)}/s'
+                  '${eta == null ? '' : ' · ${_formatEta(eta)}'}',
                   style: const TextStyle(fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Text(registry.percentText,
                   style: TextStyle(fontSize: 12, color: muted)),
+              IconButton(
+                tooltip: translate('File Transfer'),
+                visualDensity: VisualDensity.compact,
+                iconSize: 16,
+                onPressed: () => rustDeskWinManager.showFileTransferWindows(),
+                icon: const Icon(Icons.open_in_new),
+              ),
+              IconButton(
+                tooltip: translate('Cancel'),
+                visualDensity: VisualDensity.compact,
+                iconSize: 16,
+                onPressed: () => OriginiumTransferRegistry.instance.cancelAll(),
+                icon: const Icon(Icons.close),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: registry.percent,
-              minHeight: 5,
-              backgroundColor: MyTheme.accent.withOpacity(0.15),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: registry.percent,
+                minHeight: 5,
+                backgroundColor: MyTheme.accent.withOpacity(0.15),
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  String _formatEta(Duration eta) {
+    final minutes = eta.inMinutes;
+    if (minutes >= 60) {
+      return '${eta.inHours}h${eta.inMinutes % 60}m';
+    }
+    if (minutes >= 1) {
+      return '${minutes}m${eta.inSeconds % 60}s';
+    }
+    return '${eta.inSeconds}s';
+  }
 }
 
-/// Grid of recently used devices, styled after the UU remote device list.
+/// Collapsible "My Devices" shelf for the connection page.
+class OriginiumDeviceShelf extends StatefulWidget {
+  const OriginiumDeviceShelf({super.key, this.maxTiles = 6});
+
+  final int maxTiles;
+
+  @override
+  State<OriginiumDeviceShelf> createState() => _OriginiumDeviceShelfState();
+}
+
+class _OriginiumDeviceShelfState extends State<OriginiumDeviceShelf> {
+  bool _collapsed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: ConstrainedBox(
+        // Keeps the shelf from pushing the connect box off-screen when the
+        // window is narrow and the grid falls back to one column.
+        constraints: const BoxConstraints(maxHeight: 320),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              OriginiumSectionHeader(
+                translate('My Devices'),
+                trailing: IconButton(
+                  tooltip:
+                      _collapsed ? translate('Expand') : translate('Collapse'),
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  onPressed: () => setState(() => _collapsed = !_collapsed),
+                  icon:
+                      Icon(_collapsed ? Icons.expand_more : Icons.expand_less),
+                ),
+              ),
+              const OriginiumTransferBanner(),
+              if (!_collapsed) OriginiumDeviceGrid(maxTiles: widget.maxTiles),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Grid of known devices: favourites first, then recent sessions, then LAN
+/// discoveries, de-duplicated by id.
 class OriginiumDeviceGrid extends StatefulWidget {
   const OriginiumDeviceGrid({super.key, this.maxTiles = 8});
 
@@ -489,42 +740,65 @@ class OriginiumDeviceGrid extends StatefulWidget {
 }
 
 class _OriginiumDeviceGridState extends State<OriginiumDeviceGrid> {
+  bool _loading = true;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() async {
-      try {
-        await bind.mainLoadRecentPeers();
-      } catch (e) {
-        debugPrint('load recent peers failed: $e');
-      }
-    });
+    Future.microtask(_reload);
+  }
+
+  Future<void> _reload({bool discover = false}) async {
+    try {
+      if (discover) await bind.mainDiscover();
+      await Future.wait<void>([
+        bind.mainLoadRecentPeers(),
+        bind.mainLoadFavPeers(),
+        bind.mainLoadLanPeers(),
+      ]);
+    } catch (e) {
+      debugPrint('load devices failed: $e');
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  List<_DeviceEntry> _merge() {
+    final seen = <String>{};
+    final entries = <_DeviceEntry>[];
+    void add(Peer peer, {bool favorite = false, bool lan = false}) {
+      if (peer.id.isEmpty) return;
+      if (!seen.add(peer.id)) return;
+      entries.add(_DeviceEntry(peer, favorite: favorite, lan: lan));
+    }
+
+    for (final peer in gFFI.favoritePeersModel.peers) {
+      add(peer, favorite: true);
+    }
+    for (final peer in gFFI.recentPeersModel.peers) {
+      add(peer);
+    }
+    for (final peer in gFFI.lanPeersModel.peers) {
+      add(peer, lan: true);
+    }
+    return entries.take(widget.maxTiles).toList(growable: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final model = gFFI.recentPeersModel;
+    final listenable = Listenable.merge([
+      gFFI.favoritePeersModel,
+      gFFI.recentPeersModel,
+      gFFI.lanPeersModel,
+    ]);
     return AnimatedBuilder(
-      animation: model,
+      animation: listenable,
       builder: (context, _) {
-        final peers = model.peers
-            .where((peer) => peer.id.isNotEmpty)
-            .take(widget.maxTiles)
-            .toList(growable: false);
-        if (peers.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 4),
-            child: Text(
-              translate('No recent sessions'),
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.color
-                    ?.withOpacity(0.6),
-              ),
-            ),
+        final entries = _merge();
+        if (entries.isEmpty) {
+          return _EmptyDevices(
+            loading: _loading,
+            onScan: () => _reload(discover: true),
+            onRefresh: _reload,
           );
         }
         return LayoutBuilder(
@@ -548,17 +822,19 @@ class _OriginiumDeviceGridState extends State<OriginiumDeviceGrid> {
               spacing: spacing,
               runSpacing: spacing,
               children: [
-                for (final peer in peers)
+                for (final entry in entries)
                   SizedBox(
                     width: tileWidth,
                     height: tileHeight,
                     child: OriginiumPeerTile(
-                      peer: peer,
+                      peer: entry.peer,
+                      favorite: entry.favorite,
+                      lan: entry.lan,
                       // Route through connect() rather than connectMainDesktop()
                       // so relay ids are resolved and forceRelay is applied.
-                      onConnect: () => connect(context, peer.id),
+                      onConnect: () => connect(context, entry.peer.id),
                       onFileTransfer: () =>
-                          connect(context, peer.id, isFileTransfer: true),
+                          connect(context, entry.peer.id, isFileTransfer: true),
                     ),
                   ),
               ],
@@ -566,6 +842,69 @@ class _OriginiumDeviceGridState extends State<OriginiumDeviceGrid> {
           },
         );
       },
+    );
+  }
+}
+
+class _EmptyDevices extends StatelessWidget {
+  const _EmptyDevices({
+    required this.loading,
+    required this.onScan,
+    required this.onRefresh,
+  });
+
+  final bool loading;
+  final VoidCallback onScan;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted =
+        Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.65);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: MyTheme.color(context).border!),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (loading)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(Icons.devices_other_outlined,
+                size: 26, color: muted ?? Colors.grey),
+          const SizedBox(height: 8),
+          Text(
+            translate('No recent sessions'),
+            style: TextStyle(fontSize: 13, color: muted),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onScan,
+                icon: const Icon(Icons.radar, size: 16),
+                label: Text(translate('Scan LAN')),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: onRefresh,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: Text(translate('Refresh')),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
