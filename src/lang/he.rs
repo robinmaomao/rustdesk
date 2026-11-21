@@ -827,5 +827,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Request approval", "בקש אישור"),
         ("Forever", "לתמיד"),
         ("username-login-disabled-oidc-unavailable", "כניסה באמצעות שם משתמש וסיסמה מושבתת, ואין שיטות כניסה זמינות באמצעות OIDC."),
+        ("My Devices", ""),
+        ("No recent sessions", ""),
+        ("Permanent Password", ""),
+        ("Transfer in progress", ""),
+        ("Progress", ""),
+        ("Keep transferring in the background?", ""),
+        ("Minimize and keep transferring", ""),
     ].iter().cloned().collect();
 }
